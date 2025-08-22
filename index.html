@@ -46,6 +46,66 @@
             signOut
         };
 
+        // API Configuration
+        window.apiConfig = {
+            baseURL: 'https://node-api-vercel-git-main-67319090013-engs-projects.vercel.app',
+            githubRepo: 'https://github.com/67319090013-eng/node-api-vercel.git',
+            endpoints: {
+                students: '/api/students',
+                attendance: '/api/attendance',
+                users: '/api/users',
+                activities: '/api/activities',
+                reports: '/api/reports'
+            }
+        };
+
+        // API Helper Functions
+        window.apiHelper = {
+            async request(endpoint, options = {}) {
+                const url = `${window.apiConfig.baseURL}${endpoint}`;
+                const defaultOptions = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': currentUser ? `Bearer ${currentUser.token}` : ''
+                    }
+                };
+                
+                try {
+                    const response = await fetch(url, { ...defaultOptions, ...options });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error('API Request failed:', error);
+                    // Fallback to local data if API fails
+                    return null;
+                }
+            },
+
+            async get(endpoint) {
+                return this.request(endpoint, { method: 'GET' });
+            },
+
+            async post(endpoint, data) {
+                return this.request(endpoint, {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+            },
+
+            async put(endpoint, data) {
+                return this.request(endpoint, {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+            },
+
+            async delete(endpoint) {
+                return this.request(endpoint, { method: 'DELETE' });
+            }
+        };
+
         // Build configuration for deployment
         window.buildConfig = {
             "scripts": {
@@ -64,7 +124,12 @@
             },
             "rewrites": [
                 { "source": "/(.*)", "destination": "/" }
-            ]
+            ],
+            "apiIntegration": {
+                "repository": "https://github.com/67319090013-eng/node-api-vercel.git",
+                "deployment": "https://node-api-vercel-git-main-67319090013-engs-projects.vercel.app",
+                "status": "connected"
+            }
         };
     </script>
     
@@ -1089,8 +1154,8 @@
             return { userCode, password, user: newUser };
         }
 
-        // Sample student data
-        const studentsData = [
+        // Sample student data (fallback when API is not available)
+        let studentsData = [
             { 
                 id: '67001', 
                 name: 'สมชาย ใจดี', 
@@ -1158,6 +1223,79 @@
                 status: 'present' 
             }
         ];
+
+        // Data Management Functions with API Integration
+        async function loadStudentsData() {
+            try {
+                const apiData = await window.apiHelper.get(window.apiConfig.endpoints.students);
+                if (apiData && apiData.students) {
+                    studentsData = apiData.students;
+                    console.log('✅ Students data loaded from API');
+                } else {
+                    console.log('⚠️ Using local fallback data for students');
+                }
+            } catch (error) {
+                console.error('Failed to load students from API:', error);
+                console.log('⚠️ Using local fallback data for students');
+            }
+            return studentsData;
+        }
+
+        async function saveStudentData(studentData, isUpdate = false) {
+            try {
+                const endpoint = window.apiConfig.endpoints.students;
+                let result;
+                
+                if (isUpdate) {
+                    result = await window.apiHelper.put(`${endpoint}/${studentData.id}`, studentData);
+                } else {
+                    result = await window.apiHelper.post(endpoint, studentData);
+                }
+                
+                if (result) {
+                    console.log('✅ Student data saved to API');
+                    return result;
+                } else {
+                    throw new Error('API save failed');
+                }
+            } catch (error) {
+                console.error('Failed to save student to API:', error);
+                console.log('⚠️ Saving to local data only');
+                
+                // Fallback to local storage
+                if (isUpdate) {
+                    const index = studentsData.findIndex(s => s.id === studentData.id);
+                    if (index > -1) {
+                        studentsData[index] = studentData;
+                    }
+                } else {
+                    studentsData.push(studentData);
+                }
+                return studentData;
+            }
+        }
+
+        async function deleteStudentData(studentId) {
+            try {
+                const result = await window.apiHelper.delete(`${window.apiConfig.endpoints.students}/${studentId}`);
+                if (result) {
+                    console.log('✅ Student deleted from API');
+                    return result;
+                } else {
+                    throw new Error('API delete failed');
+                }
+            } catch (error) {
+                console.error('Failed to delete student from API:', error);
+                console.log('⚠️ Deleting from local data only');
+                
+                // Fallback to local deletion
+                const index = studentsData.findIndex(s => s.id === studentId);
+                if (index > -1) {
+                    studentsData.splice(index, 1);
+                }
+                return true;
+            }
+        }
 
         // For attendance grid (simplified version)
         const students = studentsData.map(s => ({ id: s.id, name: s.name, class: s.class, status: s.status }));
@@ -1606,71 +1744,88 @@
             document.getElementById('addStudentModal').classList.remove('flex');
         }
 
-        function handleAddStudent(event) {
+        async function handleAddStudent(event) {
             event.preventDefault();
             
-            // Get form data using IDs
-            const studentData = {
-                studentId: document.getElementById('addStudentId').value,
-                class: document.getElementById('addStudentClass').value,
-                firstName: document.getElementById('addStudentFirstName').value,
-                lastName: document.getElementById('addStudentLastName').value,
-                birthDate: document.getElementById('addStudentBirthDate').value,
-                gender: document.getElementById('addStudentGender').value,
-                parentName: document.getElementById('addParentName').value,
-                parentPhone: document.getElementById('addParentPhone').value,
-                parentEmail: document.getElementById('addParentEmail').value
-            };
+            // Show loading state
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>กำลังบันทึก...';
+            submitBtn.disabled = true;
             
-            // Validate required fields
-            if (!studentData.studentId || !studentData.class || !studentData.firstName || !studentData.lastName) {
-                alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
-                return;
+            try {
+                // Get form data using IDs
+                const studentData = {
+                    studentId: document.getElementById('addStudentId').value,
+                    class: document.getElementById('addStudentClass').value,
+                    firstName: document.getElementById('addStudentFirstName').value,
+                    lastName: document.getElementById('addStudentLastName').value,
+                    birthDate: document.getElementById('addStudentBirthDate').value,
+                    gender: document.getElementById('addStudentGender').value,
+                    parentName: document.getElementById('addParentName').value,
+                    parentPhone: document.getElementById('addParentPhone').value,
+                    parentEmail: document.getElementById('addParentEmail').value
+                };
+                
+                // Validate required fields
+                if (!studentData.studentId || !studentData.class || !studentData.firstName || !studentData.lastName) {
+                    alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+                    return;
+                }
+                
+                // Check if student ID already exists
+                if (studentsData.find(s => s.id === studentData.studentId)) {
+                    alert('รหัสนักเรียนนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น');
+                    return;
+                }
+                
+                // Create student object
+                const newStudent = {
+                    id: studentData.studentId,
+                    name: `${studentData.firstName} ${studentData.lastName}`,
+                    class: studentData.class,
+                    birthDate: studentData.birthDate ? new Date(studentData.birthDate).toLocaleDateString('th-TH') : '',
+                    gender: studentData.gender,
+                    parentName: studentData.parentName,
+                    parentPhone: studentData.parentPhone,
+                    parentEmail: studentData.parentEmail,
+                    status: 'present'
+                };
+                
+                // Save to API/local storage
+                await saveStudentData(newStudent, false);
+                
+                // Show success message
+                alert(`เพิ่มนักเรียน ${studentData.firstName} ${studentData.lastName} เรียบร้อยแล้ว`);
+                
+                // Reset form
+                document.getElementById('addStudentId').value = '';
+                document.getElementById('addStudentClass').value = '';
+                document.getElementById('addStudentFirstName').value = '';
+                document.getElementById('addStudentLastName').value = '';
+                document.getElementById('addStudentBirthDate').value = '';
+                document.getElementById('addStudentGender').value = '';
+                document.getElementById('addParentName').value = '';
+                document.getElementById('addParentPhone').value = '';
+                document.getElementById('addParentEmail').value = '';
+                
+                // Close modal
+                hideAddStudentModal();
+                
+                // Refresh students table
+                await populateStudentsTable();
+                
+                // Update students array for attendance
+                students.push({ id: newStudent.id, name: newStudent.name, class: newStudent.class, status: 'present' });
+                
+            } catch (error) {
+                console.error('Error adding student:', error);
+                alert('เกิดข้อผิดพลาดในการเพิ่มนักเรียน กรุณาลองใหม่อีกครั้ง');
+            } finally {
+                // Reset button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             }
-            
-            // Check if student ID already exists
-            if (studentsData.find(s => s.id === studentData.studentId)) {
-                alert('รหัสนักเรียนนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น');
-                return;
-            }
-            
-            // Add student to the list
-            const newStudent = {
-                id: studentData.studentId,
-                name: `${studentData.firstName} ${studentData.lastName}`,
-                class: studentData.class,
-                birthDate: studentData.birthDate ? new Date(studentData.birthDate).toLocaleDateString('th-TH') : '',
-                gender: studentData.gender,
-                parentName: studentData.parentName,
-                parentPhone: studentData.parentPhone,
-                parentEmail: studentData.parentEmail,
-                status: 'present'
-            };
-            
-            studentsData.push(newStudent);
-            
-            // Show success message
-            alert(`เพิ่มนักเรียน ${studentData.firstName} ${studentData.lastName} เรียบร้อยแล้ว`);
-            
-            // Reset form
-            document.getElementById('addStudentId').value = '';
-            document.getElementById('addStudentClass').value = '';
-            document.getElementById('addStudentFirstName').value = '';
-            document.getElementById('addStudentLastName').value = '';
-            document.getElementById('addStudentBirthDate').value = '';
-            document.getElementById('addStudentGender').value = '';
-            document.getElementById('addParentName').value = '';
-            document.getElementById('addParentPhone').value = '';
-            document.getElementById('addParentEmail').value = '';
-            
-            // Close modal
-            hideAddStudentModal();
-            
-            // Refresh students table
-            populateStudentsTable();
-            
-            // Update students array for attendance
-            students.push({ id: newStudent.id, name: newStudent.name, class: newStudent.class, status: 'present' });
         }
 
         function showAddActivityModal() {
@@ -2224,7 +2379,11 @@
         }
 
         // Initialize application
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Initializing School Queue Management System...');
+            console.log('📡 API Endpoint:', window.apiConfig.baseURL);
+            console.log('📂 GitHub Repository:', window.apiConfig.githubRepo);
+            
             // Set current date
             const today = new Date().toISOString().split('T')[0];
             const dateInput = document.getElementById('attendanceDate');
@@ -2238,11 +2397,22 @@
                 reportDateInput.value = today;
             }
             
+            // Load data from API
+            try {
+                console.log('📥 Loading students data from API...');
+                await loadStudentsData();
+                console.log(`✅ Loaded ${studentsData.length} students`);
+            } catch (error) {
+                console.error('❌ Failed to load API data:', error);
+            }
+            
             // Generate attendance grid
             generateAttendanceGrid();
             
             // Populate students table
-            populateStudentsTable();
+            await populateStudentsTable();
+            
+            console.log('✅ Application initialized successfully!');
         });
 
         // Close modal when clicking outside
@@ -2270,5 +2440,5 @@
             }
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'973463d140942739',t:'MTc1NTg4Njg4Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97346cc7f5f52739',t:'MTc1NTg4NzI1NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
