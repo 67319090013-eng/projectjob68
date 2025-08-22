@@ -1,0 +1,2253 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการการเข้าแถวโรงเรียน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC1ssLtPZA81OBszaYUkc9PUjwLaBSIk-g",
+            authDomain: "projectjob68-30c8e.firebaseapp.com",
+            projectId: "projectjob68-30c8e",
+            storageBucket: "projectjob68-30c8e.firebasestorage.app",
+            messagingSenderId: "33849866683",
+            appId: "1:33849866683:web:cb66f4c52bb7c0c3b3ac9e",
+            measurementId: "G-P8FPKXVZZH"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Make Firebase available globally
+        window.db = db;
+        window.auth = auth;
+        window.firebaseModules = {
+            collection,
+            addDoc,
+            getDocs,
+            doc,
+            updateDoc,
+            deleteDoc,
+            query,
+            where,
+            orderBy,
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            signOut
+        };
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Sarabun', sans-serif; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.5s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="bg-blue-500 text-white p-4 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                    <svg class="w-10 h-10" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-800">ระบบจัดการการเข้าแถว</h1>
+                <p class="text-gray-600">วิทยาลัยเทคนิคเพชรบุรี</p>
+            </div>
+            
+            <form onsubmit="handleLogin(event)" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ชื่อผู้ใช้</label>
+                    <input type="text" id="username" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                           placeholder="กรอกชื่อผู้ใช้">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">รหัสผ่าน</label>
+                    <input type="password" id="password" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                           placeholder="กรอกรหัสผ่าน">
+                </div>
+                
+
+                
+                <button type="submit" 
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                    เข้าสู่ระบบ
+                </button>
+            </form>
+            
+
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="hidden">
+        <!-- Header -->
+        <header class="bg-white shadow-lg border-b-4 border-blue-500">
+            <div class="container mx-auto px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-blue-500 text-white p-3 rounded-lg">
+                            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-800">ระบบจัดการการเข้าแถว</h1>
+                            <p class="text-gray-600">วิทยาลัยเทคนิคเพชรบุรี</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-right">
+                            <span id="currentUserName" class="text-gray-800 font-medium"></span>
+                            <div class="flex items-center space-x-2">
+                                <span id="userRoleBadge" class="px-2 py-1 rounded-full text-xs font-medium"></span>
+                                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                                    ออกจากระบบ
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-white shadow-md">
+            <div class="container mx-auto px-6">
+                <div class="flex space-x-8" id="navigationMenu">
+                    <!-- Navigation items will be populated based on user role -->
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-6 py-8">
+            <!-- Dashboard Section -->
+            <div id="dashboard" class="section fade-in">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                        <div class="flex items-center">
+                            <div class="bg-green-100 p-3 rounded-full">
+                                <svg class="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">เข้าแถววันนี้</p>
+                                <p class="text-2xl font-bold text-gray-900">847</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-100 p-3 rounded-full">
+                                <svg class="w-8 h-8 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"/>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">มาสาย</p>
+                                <p class="text-2xl font-bold text-gray-900">23</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                        <div class="flex items-center">
+                            <div class="bg-red-100 p-3 rounded-full">
+                                <svg class="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">ขาดเรียน</p>
+                                <p class="text-2xl font-bold text-gray-900">12</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                        <div class="flex items-center">
+                            <div class="bg-blue-100 p-3 rounded-full">
+                                <svg class="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">นักเรียนทั้งหมด</p>
+                                <p class="text-2xl font-bold text-gray-900">882</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions - Role-based -->
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-8" id="quickActions">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">การดำเนินการด่วน</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="quickActionsGrid">
+                        <!-- Quick actions will be populated based on user role -->
+                    </div>
+                </div>
+
+                <!-- Recent Activities -->
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">กิจกรรมล่าสุด</h3>
+                    <div class="space-y-4" id="recentActivities">
+                        <!-- Recent activities will be populated based on user role -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Students Section -->
+            <div id="students" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">จัดการข้อมูลนักเรียน</h2>
+                        <button id="addStudentBtn" onclick="showAddStudentModal()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 hidden">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                            </svg>
+                            <span>เพิ่มนักเรียน</span>
+                        </button>
+                    </div>
+
+                    <!-- Search and Filter -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <input type="text" id="searchStudent" placeholder="ค้นหาชื่อ-นามสกุล หรือรหัสนักเรียน" 
+                               onkeyup="filterStudents()" 
+                               class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <select id="filterClass" onchange="filterStudents()" 
+                                class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">ทุกห้องเรียน</option>
+                            <option value="ปวช.1">ปวช.1</option>
+                            <option value="ปวช.2">ปวช.2</option>
+                            <option value="ปวช.3">ปวช.3</option>
+                            <option value="ปวส.1">ปวส.1</option>
+                            <option value="ปวส.2">ปวส.2</option>
+                        </select>
+                        <select class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option>ปีการศึกษา 2567</option>
+                            <option>ปีการศึกษา 2566</option>
+                        </select>
+                    </div>
+
+                    <!-- Students Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสนักเรียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ห้องเรียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันเกิด</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เพศ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ผู้ปกครอง</th>
+                                    <th id="actionsHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="studentsTableBody">
+                                <!-- Students will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Section -->
+            <div id="attendance" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">บันทึกการเข้าแถว</h2>
+                    
+                    <div id="attendanceReadOnly" class="hidden">
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-yellow-700">คุณสามารถดูข้อมูลการเข้าแถวได้เท่านั้น ไม่สามารถแก้ไขได้</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Activity Selection -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <select id="activitySelect" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option>เลือกกิจกรรม</option>
+                            <option>เข้าแถวเช้า</option>
+                            <option>เข้าแถวบ่าย</option>
+                            <option>วันสำคัญ - วันแม่</option>
+                        </select>
+                        <select id="classSelect" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option>เลือกห้องเรียน</option>
+                            <option>ปวช.1</option>
+                            <option>ปวช.2</option>
+                            <option>ปวช.3</option>
+                            <option>ปวส.1</option>
+                            <option>ปวส.2</option>
+                        </select>
+                        <input type="date" id="attendanceDate" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+
+                    <!-- Attendance Recording -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">รายชื่อนักเรียน ปวช.1</h3>
+                            <div class="flex space-x-2" id="attendanceActions">
+                                <button onclick="markAllPresent()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm attendance-control">
+                                    เข้าแถวทั้งหมด
+                                </button>
+                                <button onclick="saveAttendance()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm attendance-control">
+                                    บันทึกข้อมูล
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="attendanceGrid">
+                            <!-- Student attendance cards will be generated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Management Section (Admin Only) -->
+            <div id="userManagement" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">จัดการผู้ใช้งาน</h2>
+                        <button onclick="showAddUserModal()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                            </svg>
+                            <span>เพิ่มผู้ใช้</span>
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">รหัสผู้ใช้</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ประเภท</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อีเมล</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่สร้าง</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="usersTableBody">
+                                <!-- Users will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activities Section -->
+            <div id="activities" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">จัดการกิจกรรมเข้าแถว</h2>
+                        <button id="addActivityBtn" onclick="showAddActivityModal()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 hidden">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                            </svg>
+                            <span>เพิ่มกิจกรรม</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">เข้าแถวเช้า</h3>
+                                <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">ใช้งาน</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">การเข้าแถวประจำวันในตอนเช้า</p>
+                            <div class="space-y-2 text-sm text-gray-600">
+                                <p><strong>เวลา:</strong> 07:30 - 08:00 น.</p>
+                                <p><strong>วันที่ใช้:</strong> จันทร์ - ศุกร์</p>
+                                <p><strong>ภาคเรียน:</strong> 1/2567</p>
+                            </div>
+                            <div class="mt-4 flex space-x-2 activity-actions">
+                                <button class="text-blue-600 hover:text-blue-800 text-sm edit-activity hidden">แก้ไข</button>
+                                <button class="text-red-600 hover:text-red-800 text-sm delete-activity hidden">ลบ</button>
+                            </div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">เข้าแถวบ่าย</h3>
+                                <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">ใช้งาน</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">การเข้าแถวหลังพักกลางวัน</p>
+                            <div class="space-y-2 text-sm text-gray-600">
+                                <p><strong>เวลา:</strong> 13:00 - 13:15 น.</p>
+                                <p><strong>วันที่ใช้:</strong> จันทร์ - ศุกร์</p>
+                                <p><strong>ภาคเรียน:</strong> 1/2567</p>
+                            </div>
+                            <div class="mt-4 flex space-x-2 activity-actions">
+                                <button class="text-blue-600 hover:text-blue-800 text-sm edit-activity hidden">แก้ไข</button>
+                                <button class="text-red-600 hover:text-red-800 text-sm delete-activity hidden">ลบ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Section -->
+            <div id="reports" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">รายงานสรุปการเข้าแถว</h2>
+                    
+                    <!-- Report Filters -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <select id="reportSemester" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="1/2567">ภาคเรียนที่ 1/2567</option>
+                            <option value="2/2566">ภาคเรียนที่ 2/2566</option>
+                        </select>
+                        <select id="reportClass" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">ทุกห้องเรียน</option>
+                            <option value="ปวช.1">ปวช.1</option>
+                            <option value="ปวช.2">ปวช.2</option>
+                            <option value="ปวช.3">ปวช.3</option>
+                            <option value="ปวส.1">ปวส.1</option>
+                            <option value="ปวส.2">ปวส.2</option>
+                        </select>
+                        <input type="date" id="reportDate" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <button onclick="generateReport()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z"/>
+                            </svg>
+                            <span>สร้างรายงาน</span>
+                        </button>
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-gradient-to-r from-green-400 to-green-600 text-white rounded-lg p-6">
+                            <h3 class="text-lg font-semibold mb-2">เข้าแถวปกติ</h3>
+                            <p class="text-3xl font-bold">85.2%</p>
+                            <p class="text-sm opacity-90">15,240 ครั้ง</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white rounded-lg p-6">
+                            <h3 class="text-lg font-semibold mb-2">มาสาย</h3>
+                            <p class="text-3xl font-bold">12.1%</p>
+                            <p class="text-sm opacity-90">2,165 ครั้ง</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-red-400 to-red-600 text-white rounded-lg p-6">
+                            <h3 class="text-lg font-semibold mb-2">ขาดเรียน</h3>
+                            <p class="text-3xl font-bold">2.7%</p>
+                            <p class="text-sm opacity-90">485 ครั้ง</p>
+                        </div>
+                        <div class="bg-gradient-to-r from-blue-400 to-blue-600 text-white rounded-lg p-6">
+                            <h3 class="text-lg font-semibold mb-2">อัตราเฉลี่ย</h3>
+                            <p class="text-3xl font-bold">97.3%</p>
+                            <p class="text-sm opacity-90">การเข้าแถว</p>
+                        </div>
+                    </div>
+
+                    <!-- Report Actions -->
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">รายงานรายละเอียด</h3>
+                        <div class="flex space-x-2" id="reportActions">
+                            <button onclick="downloadReportPDF()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/>
+                                </svg>
+                                <span>ดาวน์โหลด PDF</span>
+                            </button>
+                            <button onclick="downloadReportExcel()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/>
+                                </svg>
+                                <span>ดาวน์โหลด Excel</span>
+                            </button>
+                            <button onclick="printReport()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/>
+                                </svg>
+                                <span>พิมพ์รายงาน</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Report Table -->
+                    <div class="overflow-x-auto">
+                        <table id="reportTable" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ห้องเรียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนนักเรียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เข้าแถว</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">มาสาย</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ขาดเรียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เปอร์เซ็นต์</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">ปวช.1</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">35</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">1,890</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-600 font-medium">245</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">65</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">86.2%</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">ปวส.1</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">34</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">1,825</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-600 font-medium">198</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">77</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">86.9%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Section -->
+            <div id="notifications" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">การแจ้งเตือนผู้ปกครอง</h2>
+                    
+                    <!-- Notification Settings -->
+                    <div class="bg-gray-50 rounded-lg p-6 mb-6" id="notificationSettings">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">ตั้งค่าการแจ้งเตือน</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="space-y-4">
+                                <h4 class="font-medium text-gray-700">SMS</h4>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 notification-setting">
+                                    <span class="ml-2 text-sm text-gray-600">แจ้งเตือนเมื่อมาสาย</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 notification-setting">
+                                    <span class="ml-2 text-sm text-gray-600">แจ้งเตือนเมื่อขาดเรียน</span>
+                                </label>
+                            </div>
+                            <div class="space-y-4">
+                                <h4 class="font-medium text-gray-700">Email</h4>
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 notification-setting">
+                                    <span class="ml-2 text-sm text-gray-600">รายงานสรุปรายสัปดาห์</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 notification-setting">
+                                    <span class="ml-2 text-sm text-gray-600">รายงานสรุปรายเดือน</span>
+                                </label>
+                            </div>
+                            <div class="space-y-4">
+                                <h4 class="font-medium text-gray-700">LINE Notify</h4>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 notification-setting">
+                                    <span class="ml-2 text-sm text-gray-600">แจ้งเตือนทันที</span>
+                                </label>
+                                <button class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm notification-setting">
+                                    เชื่อมต่อ LINE
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Notifications -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-800">การแจ้งเตือนล่าสุด</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-yellow-100 p-2 rounded-full">
+                                        <svg class="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">SMS ส่งถึง นายสมศักดิ์ ใจดี</p>
+                                        <p class="text-xs text-gray-600">บุตรชาย สมชาย มาสาย 15 นาที - 08:15 น.</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">ส่งแล้ว</span>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-red-100 p-2 rounded-full">
+                                        <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">LINE ส่งถึง นางสมใจ รักเรียน</p>
+                                        <p class="text-xs text-gray-600">บุตรหญิง สมหญิng ขาดเรียนวันนี้ - 07:45 น.</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">ส่งแล้ว</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Student Dashboard (Student View) -->
+            <div id="studentDashboard" class="section hidden">
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">ข้อมูลการเข้าแถวของฉัน</h2>
+                    
+                    <!-- Student Info Card -->
+                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+                        <div class="flex items-center space-x-4">
+                            <div class="bg-white bg-opacity-20 p-3 rounded-full">
+                                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">สมชาย ใจดี</h3>
+                                <p class="opacity-90">รหัสนักเรียน: 67001 | ห้อง: ปวช.1</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attendance Summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="bg-green-100 p-3 rounded-full">
+                                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">เข้าแถวปกติ</p>
+                                    <p class="text-2xl font-bold text-green-600">156 วัน</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="bg-yellow-100 p-3 rounded-full">
+                                    <svg class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">มาสาย</p>
+                                    <p class="text-2xl font-bold text-yellow-600">8 วัน</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="bg-red-100 p-3 rounded-full">
+                                    <svg class="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+                                    </svg>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">ขาดเรียน</p>
+                                    <p class="text-2xl font-bold text-red-600">2 วัน</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Attendance -->
+                    <div class="bg-gray-50 rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">การเข้าแถวล่าสุด</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between p-3 bg-white rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-green-100 p-2 rounded-full">
+                                        <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">เข้าแถวเช้า</p>
+                                        <p class="text-xs text-gray-500">วันนี้ - 07:45 น.</p>
+                                    </div>
+                                </div>
+                                <span class="text-sm text-green-600 font-medium">เข้าแถว</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-3 bg-white rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-yellow-100 p-2 rounded-full">
+                                        <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">เข้าแถวเช้า</p>
+                                        <p class="text-xs text-gray-500">เมื่อวาน - 08:05 น.</p>
+                                    </div>
+                                </div>
+                                <span class="text-sm text-yellow-600 font-medium">มาสาย 20 นาที</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900">เพิ่มผู้ใช้งานใหม่</h3>
+                <button onclick="hideAddUserModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form onsubmit="handleAddUser(event)" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ประเภทผู้ใช้</label>
+                        <select id="userRole" onchange="toggleStudentFields()" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                            <option value="">เลือกประเภทผู้ใช้</option>
+                            <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                            <option value="teacher">ครู (Teacher)</option>
+                            <option value="student">นักเรียน (Student)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
+                        <input type="text" id="userName" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+                    <input type="email" id="userEmail" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                
+                <!-- Student-specific fields -->
+                <div id="studentFields" class="hidden border-t pt-4">
+                    <h4 class="text-lg font-medium text-gray-900 mb-3">ข้อมูลนักเรียน</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักเรียน</label>
+                            <input type="text" id="studentId" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ห้องเรียน</label>
+                            <select id="studentClass" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">เลือกห้องเรียน</option>
+                                <option value="ปวช.1/1">ปวช.1/1</option>
+                                <option value="ปวช.1/2">ปวช.1/2</option>
+                                <option value="ปวช.2/1">ปวช.2/1</option>
+                                <option value="ปวช.3/1">ปวช.3/1</option>
+                                <option value="ปวส.1/1">ปวส.1/1</option>
+                                <option value="ปวส.2/1">ปวส.2/1</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-blue-800">ข้อมูลการเข้าสู่ระบบ</h3>
+                            <div class="mt-2 text-sm text-blue-700">
+                                <p>• รหัสผู้ใช้และรหัสผ่านจะถูกสร้างอัตโนมัติ</p>
+                                <p>• รูปแบบรหัสผู้ใช้: ADM001, TCH001, STD001</p>
+                                <p>• รูปแบบรหัสผ่าน: รหัสผู้ใช้@2024</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-6">
+                    <button type="button" onclick="hideAddUserModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        สร้างผู้ใช้
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- User Created Success Modal -->
+    <div id="userCreatedModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">สร้างผู้ใช้สำเร็จ!</h3>
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div class="text-left space-y-2">
+                        <p class="text-sm text-gray-600"><strong>รหัสผู้ใช้:</strong> <span id="createdUserCode" class="font-mono text-blue-600"></span></p>
+                        <p class="text-sm text-gray-600"><strong>รหัสผ่าน:</strong> <span id="createdPassword" class="font-mono text-blue-600"></span></p>
+                        <p class="text-sm text-gray-600"><strong>ชื่อ:</strong> <span id="createdUserName"></span></p>
+                    </div>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6">
+                    <p class="text-sm text-yellow-800">⚠️ กรุณาบันทึกข้อมูลการเข้าสู่ระบบนี้ เพื่อแจ้งให้ผู้ใช้ทราบ</p>
+                </div>
+                <button onclick="hideUserCreatedModal()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                    ตกลง
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Student Modal -->
+    <div id="editStudentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900">แก้ไขข้อมูลนักเรียน</h3>
+                <button onclick="hideEditStudentModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form onsubmit="handleEditStudent(event)" class="space-y-4">
+                <input type="hidden" id="editStudentOriginalId">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักเรียน</label>
+                        <input type="text" id="editStudentId" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ห้องเรียน</label>
+                        <select id="editStudentClass" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">เลือกห้องเรียน</option>
+                            <option value="ปวช.1">ปวช.1</option>
+                            <option value="ปวช.2">ปวช.2</option>
+                            <option value="ปวช.3">ปวช.3</option>
+                            <option value="ปวส.1">ปวส.1</option>
+                            <option value="ปวส.2">ปวส.2</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ</label>
+                        <input type="text" id="editStudentFirstName" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล</label>
+                        <input type="text" id="editStudentLastName" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">วันเกิด</label>
+                        <input type="date" id="editStudentBirthDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เพศ</label>
+                        <select id="editStudentGender" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">เลือกเพศ</option>
+                            <option value="ชาย">ชาย</option>
+                            <option value="หญิง">หญิง</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="border-t pt-4">
+                    <h4 class="text-lg font-medium text-gray-900 mb-3">ข้อมูลผู้ปกครอง</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ปกครอง</label>
+                            <input type="text" id="editParentName" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรศัพท์</label>
+                            <input type="tel" id="editParentPhone" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+                        <input type="email" id="editParentEmail" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-6">
+                    <button type="button" onclick="hideEditStudentModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        บันทึกการแก้ไข
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Student Modal -->
+    <div id="addStudentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-900">เพิ่มนักเรียนใหม่</h3>
+                <button onclick="hideAddStudentModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form onsubmit="handleAddStudent(event)" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักเรียน</label>
+                        <input type="text" id="addStudentId" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ห้องเรียน</label>
+                        <select id="addStudentClass" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">เลือกห้องเรียน</option>
+                            <option value="ปวช.1">ปวช.1</option>
+                            <option value="ปวช.2">ปวช.2</option>
+                            <option value="ปวช.3">ปวช.3</option>
+                            <option value="ปวส.1">ปวส.1</option>
+                            <option value="ปวส.2">ปวส.2</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ</label>
+                        <input type="text" id="addStudentFirstName" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล</label>
+                        <input type="text" id="addStudentLastName" required class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">วันเกิด</label>
+                        <input type="date" id="addStudentBirthDate" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เพศ</label>
+                        <select id="addStudentGender" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">เลือกเพศ</option>
+                            <option value="ชาย">ชาย</option>
+                            <option value="หญิง">หญิง</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="border-t pt-4">
+                    <h4 class="text-lg font-medium text-gray-900 mb-3">ข้อมูลผู้ปกครอง</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ปกครอง</label>
+                            <input type="text" id="addParentName" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เบอร์โทรศัพท์</label>
+                            <input type="tel" id="addParentPhone" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+                        <input type="email" id="addParentEmail" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 pt-6">
+                    <button type="button" onclick="hideAddStudentModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // User authentication and role management
+        let currentUser = null;
+        
+        // User database with generated codes
+        const users = {
+            'ADM001': { username: 'ADM001', password: 'ADM001@2024', role: 'admin', name: 'ผู้ดูแลระบบ', email: 'admin@pbtc.ac.th', active: true, createdDate: '2024-01-15' },
+            'TCH001': { username: 'TCH001', password: 'TCH001@2024', role: 'teacher', name: 'ครูสมชาย ใจดี', email: 'teacher1@pbtc.ac.th', active: true, createdDate: '2024-01-20' },
+            'TCH002': { username: 'TCH002', password: 'TCH002@2024', role: 'teacher', name: 'ครูสมหญิง รักเรียน', email: 'teacher2@pbtc.ac.th', active: true, createdDate: '2024-01-25' },
+            'STD001': { username: 'STD001', password: 'STD001@2024', role: 'student', name: 'สมชาย ใจดี', email: 'student1@pbtc.ac.th', active: true, createdDate: '2024-02-01', studentId: '67001', class: 'ปวช.1' },
+            'STD002': { username: 'STD002', password: 'STD002@2024', role: 'student', name: 'สมหญิง รักเรียน', email: 'student2@pbtc.ac.th', active: true, createdDate: '2024-02-01', studentId: '67002', class: 'ปวช.1' }
+        };
+
+        // Code generation counters
+        let codeCounters = {
+            admin: 1,
+            teacher: 2,
+            student: 2
+        };
+
+        // Code generation functions
+        function generateUserCode(role) {
+            const prefixes = {
+                'admin': 'ADM',
+                'teacher': 'TCH', 
+                'student': 'STD'
+            };
+            
+            codeCounters[role]++;
+            const number = codeCounters[role].toString().padStart(3, '0');
+            return `${prefixes[role]}${number}`;
+        }
+
+        function generatePassword(userCode) {
+            return `${userCode}@2024`;
+        }
+
+        function createNewUser(userData) {
+            const userCode = generateUserCode(userData.role);
+            const password = generatePassword(userCode);
+            
+            const newUser = {
+                username: userCode,
+                password: password,
+                role: userData.role,
+                name: userData.name,
+                email: userData.email,
+                active: true,
+                createdDate: new Date().toISOString().split('T')[0]
+            };
+            
+            // Add additional fields for students
+            if (userData.role === 'student') {
+                newUser.studentId = userData.studentId;
+                newUser.class = userData.class;
+            }
+            
+            users[userCode] = newUser;
+            return { userCode, password, user: newUser };
+        }
+
+        // Sample student data
+        const studentsData = [
+            { 
+                id: '67001', 
+                name: 'สมชาย ใจดี', 
+                class: 'ปวช.1', 
+                birthDate: '15/03/2549',
+                gender: 'ชาย',
+                parentName: 'นายสมศักดิ์ ใจดี',
+                parentPhone: '081-234-5678',
+                parentEmail: 'somsakdi@email.com',
+                status: 'present' 
+            },
+            { 
+                id: '67002', 
+                name: 'สมหญิง รักเรียน', 
+                class: 'ปวช.1', 
+                birthDate: '22/07/2549',
+                gender: 'หญิง',
+                parentName: 'นางสมใจ รักเรียน',
+                parentPhone: '082-345-6789',
+                parentEmail: 'somjai@email.com',
+                status: 'present' 
+            },
+            { 
+                id: '67003', 
+                name: 'สมศักดิ์ เรียนดี', 
+                class: 'ปวช.2', 
+                birthDate: '10/11/2549',
+                gender: 'ชาย',
+                parentName: 'นายสมพร เรียนดี',
+                parentPhone: '083-456-7890',
+                parentEmail: 'somporn@email.com',
+                status: 'late' 
+            },
+            { 
+                id: '67004', 
+                name: 'สมใจ ขยันเรียน', 
+                class: 'ปวช.3', 
+                birthDate: '05/09/2548',
+                gender: 'หญิง',
+                parentName: 'นางสมศรี ขยันเรียน',
+                parentPhone: '084-567-8901',
+                parentEmail: 'somsri@email.com',
+                status: 'absent' 
+            },
+            { 
+                id: '67005', 
+                name: 'สมปอง ใฝ่เรียน', 
+                class: 'ปวส.1', 
+                birthDate: '18/12/2547',
+                gender: 'ชาย',
+                parentName: 'นายสมบูรณ์ ใฝ่เรียน',
+                parentPhone: '085-678-9012',
+                parentEmail: 'somboon@email.com',
+                status: 'present' 
+            },
+            { 
+                id: '67006', 
+                name: 'สมพร รักครู', 
+                class: 'ปวส.2', 
+                birthDate: '30/01/2546',
+                gender: 'หญิง',
+                parentName: 'นางสมหวัง รักครู',
+                parentPhone: '086-789-0123',
+                parentEmail: 'somwang@email.com',
+                status: 'present' 
+            }
+        ];
+
+        // For attendance grid (simplified version)
+        const students = studentsData.map(s => ({ id: s.id, name: s.name, class: s.class, status: s.status }));
+
+        // Login functionality
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            const user = users[username];
+            
+            if (user && user.password === password) {
+                currentUser = user;
+                showMainApp();
+            } else {
+                alert('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+            }
+        }
+
+        // Show main application
+        function showMainApp() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            
+            // Update user info in header
+            document.getElementById('currentUserName').textContent = currentUser.name;
+            
+            // Update role badge
+            const roleBadge = document.getElementById('userRoleBadge');
+            const roleColors = {
+                'admin': 'bg-purple-100 text-purple-800',
+                'teacher': 'bg-blue-100 text-blue-800',
+                'student': 'bg-green-100 text-green-800'
+            };
+            const roleNames = {
+                'admin': 'Admin',
+                'teacher': 'Teacher',
+                'student': 'Student'
+            };
+            
+            roleBadge.className = `px-2 py-1 rounded-full text-xs font-medium ${roleColors[currentUser.role]}`;
+            roleBadge.textContent = roleNames[currentUser.role];
+            
+            // Setup navigation and permissions
+            setupNavigation();
+            setupPermissions();
+            
+            // Show appropriate dashboard
+            if (currentUser.role === 'student') {
+                showSection('studentDashboard');
+            } else {
+                showSection('dashboard');
+            }
+            
+            // Populate users table if admin
+            if (currentUser.role === 'admin') {
+                populateUsersTable();
+            }
+            
+            // Populate students table
+            populateStudentsTable();
+        }
+
+        // Setup navigation based on user role
+        function setupNavigation() {
+            const nav = document.getElementById('navigationMenu');
+            nav.innerHTML = '';
+            
+            const navItems = {
+                'admin': [
+                    { id: 'dashboard', name: 'แดชบอร์ด', active: true },
+                    { id: 'students', name: 'จัดการนักเรียน' },
+                    { id: 'attendance', name: 'บันทึกการเข้าแถว' },
+                    { id: 'activities', name: 'กิจกรรมเข้าแถว' },
+                    { id: 'userManagement', name: 'จัดการผู้ใช้' },
+                    { id: 'reports', name: 'รายงานสรุป' },
+                    { id: 'notifications', name: 'การแจ้งเตือน' }
+                ],
+                'teacher': [
+                    { id: 'dashboard', name: 'แดชบอร์ด', active: true },
+                    { id: 'students', name: 'จัดการนักเรียน' },
+                    { id: 'attendance', name: 'บันทึกการเข้าแถว' },
+                    { id: 'reports', name: 'รายงานสรุป' },
+                    { id: 'notifications', name: 'การแจ้งเตือน' }
+                ],
+                'student': [
+                    { id: 'studentDashboard', name: 'ข้อมูลของฉัน', active: true },
+                    { id: 'reports', name: 'ประวัติการเข้าแถว' }
+                ]
+            };
+            
+            navItems[currentUser.role].forEach(item => {
+                const button = document.createElement('button');
+                button.addEventListener('click', () => showSection(item.id));
+                button.className = `nav-btn py-4 px-2 border-b-2 transition-colors ${
+                    item.active 
+                        ? 'border-blue-500 text-blue-600 font-medium' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`;
+                button.textContent = item.name;
+                button.setAttribute('data-section', item.id);
+                nav.appendChild(button);
+            });
+        }
+
+        // Setup permissions based on user role
+        function setupPermissions() {
+            const role = currentUser.role;
+            
+            // Quick actions based on role
+            setupQuickActions();
+            
+            // Student management permissions
+            setupStudentPermissions();
+            
+            // Attendance permissions
+            if (role === 'student') {
+                document.getElementById('attendanceReadOnly').classList.remove('hidden');
+                document.querySelectorAll('.attendance-control').forEach(btn => btn.disabled = true);
+                document.querySelectorAll('.attendance-control').forEach(btn => btn.classList.add('opacity-50', 'cursor-not-allowed'));
+            }
+            
+            // Activity management permissions
+            if (role === 'admin') {
+                document.getElementById('addActivityBtn').classList.remove('hidden');
+                document.querySelectorAll('.edit-activity').forEach(btn => btn.classList.remove('hidden'));
+                document.querySelectorAll('.delete-activity').forEach(btn => btn.classList.remove('hidden'));
+            }
+            
+            // Notification settings permissions
+            if (role === 'student') {
+                document.getElementById('notificationSettings').classList.add('hidden');
+                document.querySelectorAll('.notification-setting').forEach(el => el.disabled = true);
+            }
+        }
+
+        function setupStudentPermissions() {
+            const role = currentUser.role;
+            
+            if (role === 'admin' || role === 'teacher') {
+                document.getElementById('addStudentBtn').classList.remove('hidden');
+                // Show edit buttons for admin and teacher
+                setTimeout(() => {
+                    document.querySelectorAll('.edit-btn').forEach(btn => btn.classList.remove('hidden'));
+                    
+                    if (role === 'admin') {
+                        document.querySelectorAll('.delete-btn').forEach(btn => btn.classList.remove('hidden'));
+                    }
+                }, 100);
+            } else {
+                document.querySelectorAll('.view-only').forEach(span => span.classList.remove('hidden'));
+                document.getElementById('actionsHeader').textContent = 'สถานะ';
+            }
+        }
+
+        // Setup quick actions based on role
+        function setupQuickActions() {
+            const quickActionsGrid = document.getElementById('quickActionsGrid');
+            quickActionsGrid.innerHTML = '';
+            
+            const actions = {
+                'admin': [
+                    { 
+                        onclick: "showSection('attendance')", 
+                        class: "bg-blue-500 hover:bg-blue-600", 
+                        icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", 
+                        text: "บันทึกการเข้าแถว" 
+                    },
+                    { 
+                        onclick: "showSection('students')", 
+                        class: "bg-green-500 hover:bg-green-600", 
+                        icon: "M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6z", 
+                        text: "เพิ่มนักเรียนใหม่" 
+                    },
+                    { 
+                        onclick: "showSection('userManagement')", 
+                        class: "bg-purple-500 hover:bg-purple-600", 
+                        icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z", 
+                        text: "จัดการผู้ใช้งาน" 
+                    }
+                ],
+                'teacher': [
+                    { 
+                        onclick: "showSection('attendance')", 
+                        class: "bg-blue-500 hover:bg-blue-600", 
+                        icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", 
+                        text: "บันทึกการเข้าแถว" 
+                    },
+                    { 
+                        onclick: "showSection('students')", 
+                        class: "bg-green-500 hover:bg-green-600", 
+                        icon: "M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6z", 
+                        text: "แก้ไขข้อมูลนักเรียน" 
+                    },
+                    { 
+                        onclick: "showSection('reports')", 
+                        class: "bg-purple-500 hover:bg-purple-600", 
+                        icon: "M9 2a1 1 0 000 2h2a1 1 0 100-2H9z M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z", 
+                        text: "ดูรายงานสรุป" 
+                    }
+                ],
+                'student': [
+                    { 
+                        onclick: "showSection('reports')", 
+                        class: "bg-blue-500 hover:bg-blue-600", 
+                        icon: "M9 2a1 1 0 000 2h2a1 1 0 100-2H9z M4 5a2 2 0 012-2v1a1 1 0 001 1h6a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3z", 
+                        text: "ดูประวัติการเข้าแถว" 
+                    }
+                ]
+            };
+            
+            actions[currentUser.role].forEach(action => {
+                const button = document.createElement('button');
+                button.addEventListener('click', () => {
+                    if (action.onclick.includes('showSection')) {
+                        const sectionName = action.onclick.match(/showSection\('([^']+)'\)/)[1];
+                        showSection(sectionName);
+                    } else {
+                        eval(action.onclick);
+                    }
+                });
+                button.className = `${action.class} text-white p-4 rounded-lg transition-colors flex items-center space-x-3`;
+                button.innerHTML = `
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="${action.icon}"/>
+                    </svg>
+                    <span>${action.text}</span>
+                `;
+                quickActionsGrid.appendChild(button);
+            });
+        }
+
+        // Navigation functionality
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show selected section
+            const targetSection = document.getElementById(sectionName);
+            if (targetSection) {
+                targetSection.classList.remove('hidden');
+                targetSection.classList.add('fade-in');
+            }
+            
+            // Update navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600', 'font-medium');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Find and highlight active nav button
+            const activeBtn = document.querySelector(`[data-section="${sectionName}"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'text-gray-500');
+                activeBtn.classList.add('border-blue-500', 'text-blue-600', 'font-medium');
+            }
+        }
+
+        // Logout functionality
+        function logout() {
+            currentUser = null;
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            
+            // Reset form
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        // User management functions
+        function populateUsersTable() {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+            
+            Object.values(users).forEach(user => {
+                const row = document.createElement('tr');
+                
+                const roleColors = {
+                    'admin': 'bg-purple-100 text-purple-800',
+                    'teacher': 'bg-blue-100 text-blue-800',
+                    'student': 'bg-green-100 text-green-800'
+                };
+                
+                const roleNames = {
+                    'admin': 'Admin',
+                    'teacher': 'Teacher',
+                    'student': 'Student'
+                };
+                
+                const statusColor = user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = user.active ? 'ใช้งาน' : 'ปิดใช้งาน';
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono">${user.username}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${user.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium ${roleColors[user.role]} rounded-full">${roleNames[user.role]}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.createdDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 py-1 text-xs font-medium ${statusColor} rounded-full">${statusText}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button onclick="editUser('${user.username}')" class="text-blue-600 hover:text-blue-900">แก้ไข</button>
+                        <button onclick="toggleUserStatus('${user.username}')" class="text-${user.active ? 'red' : 'green'}-600 hover:text-${user.active ? 'red' : 'green'}-900">
+                            ${user.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                        </button>
+                        <button onclick="showUserCredentials('${user.username}')" class="text-purple-600 hover:text-purple-900">ดูรหัสผ่าน</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function toggleStudentFields() {
+            const role = document.getElementById('userRole').value;
+            const studentFields = document.getElementById('studentFields');
+            
+            if (role === 'student') {
+                studentFields.classList.remove('hidden');
+                document.getElementById('studentId').required = true;
+                document.getElementById('studentClass').required = true;
+            } else {
+                studentFields.classList.add('hidden');
+                document.getElementById('studentId').required = false;
+                document.getElementById('studentClass').required = false;
+            }
+        }
+
+        function handleAddUser(event) {
+            event.preventDefault();
+            
+            const userData = {
+                role: document.getElementById('userRole').value,
+                name: document.getElementById('userName').value,
+                email: document.getElementById('userEmail').value
+            };
+            
+            // Add student-specific data if role is student
+            if (userData.role === 'student') {
+                userData.studentId = document.getElementById('studentId').value;
+                userData.class = document.getElementById('studentClass').value;
+            }
+            
+            // Create new user
+            const result = createNewUser(userData);
+            
+            // Show success modal with credentials
+            document.getElementById('createdUserCode').textContent = result.userCode;
+            document.getElementById('createdPassword').textContent = result.password;
+            document.getElementById('createdUserName').textContent = result.user.name;
+            
+            hideAddUserModal();
+            showUserCreatedModal();
+            
+            // Refresh users table
+            populateUsersTable();
+            
+            // Reset form
+            document.getElementById('userRole').value = '';
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
+            document.getElementById('studentId').value = '';
+            document.getElementById('studentClass').value = '';
+            toggleStudentFields();
+        }
+
+        function editUser(username) {
+            // Check permissions - only admin can edit users
+            if (currentUser.role !== 'admin') {
+                alert('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลผู้ใช้ได้');
+                return;
+            }
+            
+            const user = users[username];
+            if (user) {
+                const newName = prompt(`แก้ไขชื่อผู้ใช้:\n\nชื่อเดิม: ${user.name}\nกรุณากรอกชื่อใหม่:`, user.name);
+                
+                if (newName && newName.trim() !== '' && newName !== user.name) {
+                    user.name = newName.trim();
+                    populateUsersTable();
+                    alert(`แก้ไขชื่อผู้ใช้เป็น "${newName}" เรียบร้อยแล้ว`);
+                } else if (newName === '') {
+                    alert('กรุณากรอกชื่อผู้ใช้');
+                }
+            }
+        }
+
+        function toggleUserStatus(username) {
+            // Check permissions - only admin can toggle user status
+            if (currentUser.role !== 'admin') {
+                alert('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเปิด/ปิดใช้งานผู้ใช้ได้');
+                return;
+            }
+            
+            const user = users[username];
+            if (user && user.username !== currentUser.username) {
+                const action = user.active ? 'ปิดใช้งาน' : 'เปิดใช้งาน';
+                if (confirm(`คุณต้องการ${action}ผู้ใช้ ${user.name} หรือไม่?`)) {
+                    user.active = !user.active;
+                    populateUsersTable();
+                    
+                    const status = user.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน';
+                    alert(`${status}ผู้ใช้ ${user.name} เรียบร้อยแล้ว`);
+                }
+            } else if (user && user.username === currentUser.username) {
+                alert('ไม่สามารถปิดใช้งานบัญชีของตนเองได้');
+            }
+        }
+
+        function showUserCredentials(username) {
+            // Check permissions - only admin can view credentials
+            if (currentUser.role !== 'admin') {
+                alert('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดูรหัสผ่านได้');
+                return;
+            }
+            
+            const user = users[username];
+            if (user) {
+                const resetPassword = confirm(`ข้อมูลการเข้าสู่ระบบ\n\nรหัสผู้ใช้: ${user.username}\nรหัสผ่าน: ${user.password}\nชื่อ: ${user.name}\n\nต้องการรีเซ็ตรหัสผ่านหรือไม่?`);
+                
+                if (resetPassword) {
+                    const newPassword = generatePassword(user.username);
+                    user.password = newPassword;
+                    populateUsersTable();
+                    alert(`รีเซ็ตรหัสผ่านเรียบร้อย!\n\nรหัสผ่านใหม่: ${newPassword}`);
+                }
+            }
+        }
+
+        // Modal functions
+        function showAddStudentModal() {
+            if (currentUser.role === 'admin' || currentUser.role === 'teacher') {
+                document.getElementById('addStudentModal').classList.remove('hidden');
+                document.getElementById('addStudentModal').classList.add('flex');
+            }
+        }
+
+        function hideAddStudentModal() {
+            document.getElementById('addStudentModal').classList.add('hidden');
+            document.getElementById('addStudentModal').classList.remove('flex');
+        }
+
+        function handleAddStudent(event) {
+            event.preventDefault();
+            
+            // Get form data using IDs
+            const studentData = {
+                studentId: document.getElementById('addStudentId').value,
+                class: document.getElementById('addStudentClass').value,
+                firstName: document.getElementById('addStudentFirstName').value,
+                lastName: document.getElementById('addStudentLastName').value,
+                birthDate: document.getElementById('addStudentBirthDate').value,
+                gender: document.getElementById('addStudentGender').value,
+                parentName: document.getElementById('addParentName').value,
+                parentPhone: document.getElementById('addParentPhone').value,
+                parentEmail: document.getElementById('addParentEmail').value
+            };
+            
+            // Validate required fields
+            if (!studentData.studentId || !studentData.class || !studentData.firstName || !studentData.lastName) {
+                alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+                return;
+            }
+            
+            // Check if student ID already exists
+            if (studentsData.find(s => s.id === studentData.studentId)) {
+                alert('รหัสนักเรียนนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น');
+                return;
+            }
+            
+            // Add student to the list
+            const newStudent = {
+                id: studentData.studentId,
+                name: `${studentData.firstName} ${studentData.lastName}`,
+                class: studentData.class,
+                birthDate: studentData.birthDate ? new Date(studentData.birthDate).toLocaleDateString('th-TH') : '',
+                gender: studentData.gender,
+                parentName: studentData.parentName,
+                parentPhone: studentData.parentPhone,
+                parentEmail: studentData.parentEmail,
+                status: 'present'
+            };
+            
+            studentsData.push(newStudent);
+            
+            // Show success message
+            alert(`เพิ่มนักเรียน ${studentData.firstName} ${studentData.lastName} เรียบร้อยแล้ว`);
+            
+            // Reset form
+            document.getElementById('addStudentId').value = '';
+            document.getElementById('addStudentClass').value = '';
+            document.getElementById('addStudentFirstName').value = '';
+            document.getElementById('addStudentLastName').value = '';
+            document.getElementById('addStudentBirthDate').value = '';
+            document.getElementById('addStudentGender').value = '';
+            document.getElementById('addParentName').value = '';
+            document.getElementById('addParentPhone').value = '';
+            document.getElementById('addParentEmail').value = '';
+            
+            // Close modal
+            hideAddStudentModal();
+            
+            // Refresh students table
+            populateStudentsTable();
+            
+            // Update students array for attendance
+            students.push({ id: newStudent.id, name: newStudent.name, class: newStudent.class, status: 'present' });
+        }
+
+        function showAddActivityModal() {
+            if (currentUser.role === 'admin') {
+                alert('เปิดหน้าต่างเพิ่มกิจกรรมใหม่ (Demo)');
+            }
+        }
+
+        function showAddUserModal() {
+            if (currentUser.role === 'admin') {
+                document.getElementById('addUserModal').classList.remove('hidden');
+                document.getElementById('addUserModal').classList.add('flex');
+            }
+        }
+
+        function hideAddUserModal() {
+            document.getElementById('addUserModal').classList.add('hidden');
+            document.getElementById('addUserModal').classList.remove('flex');
+        }
+
+        function showUserCreatedModal() {
+            document.getElementById('userCreatedModal').classList.remove('hidden');
+            document.getElementById('userCreatedModal').classList.add('flex');
+        }
+
+        function hideUserCreatedModal() {
+            document.getElementById('userCreatedModal').classList.add('hidden');
+            document.getElementById('userCreatedModal').classList.remove('flex');
+        }
+
+        // Attendance functions
+        function generateAttendanceGrid() {
+            const grid = document.getElementById('attendanceGrid');
+            grid.innerHTML = '';
+            
+            students.forEach(student => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-gray-200 rounded-lg p-4';
+                
+                const isReadOnly = currentUser.role === 'student';
+                const buttonsHtml = isReadOnly ? 
+                    `<div class="text-center text-sm text-gray-500 mt-3">ดูอย่างเดียว</div>` :
+                    `<div class="space-y-2">
+                        <button onclick="setAttendanceStatus('${student.id}', 'present')" 
+                                class="w-full py-2 px-3 text-sm rounded-lg transition-colors ${student.status === 'present' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-green-100'}">
+                            เข้าแถว
+                        </button>
+                        <button onclick="setAttendanceStatus('${student.id}', 'late')" 
+                                class="w-full py-2 px-3 text-sm rounded-lg transition-colors ${student.status === 'late' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-yellow-100'}">
+                            มาสาย
+                        </button>
+                        <button onclick="setAttendanceStatus('${student.id}', 'absent')" 
+                                class="w-full py-2 px-3 text-sm rounded-lg transition-colors ${student.status === 'absent' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-red-100'}">
+                            ขาดเรียน
+                        </button>
+                    </div>`;
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <p class="font-medium text-gray-900">${student.name}</p>
+                            <p class="text-sm text-gray-500">${student.id}</p>
+                        </div>
+                        <div class="status-indicator ${getStatusColor(student.status)}"></div>
+                    </div>
+                    ${buttonsHtml}
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function getStatusColor(status) {
+            switch(status) {
+                case 'present': return 'w-3 h-3 bg-green-500 rounded-full';
+                case 'late': return 'w-3 h-3 bg-yellow-500 rounded-full';
+                case 'absent': return 'w-3 h-3 bg-red-500 rounded-full';
+                default: return 'w-3 h-3 bg-gray-300 rounded-full';
+            }
+        }
+
+        function setAttendanceStatus(studentId, status) {
+            if (currentUser.role === 'student') return;
+            
+            const student = students.find(s => s.id === studentId);
+            if (student) {
+                student.status = status;
+                generateAttendanceGrid();
+            }
+        }
+
+        function markAllPresent() {
+            if (currentUser.role === 'student') return;
+            
+            students.forEach(student => {
+                student.status = 'present';
+            });
+            generateAttendanceGrid();
+        }
+
+        function saveAttendance() {
+            if (currentUser.role === 'student') return;
+            
+            const presentCount = students.filter(s => s.status === 'present').length;
+            const lateCount = students.filter(s => s.status === 'late').length;
+            const absentCount = students.filter(s => s.status === 'absent').length;
+            
+            alert(`บันทึกข้อมูลเรียบร้อย!\n\nเข้าแถว: ${presentCount} คน\nมาสาย: ${lateCount} คน\nขาดเรียน: ${absentCount} คน`);
+        }
+
+        // Student management functions
+        function populateStudentsTable() {
+            const tbody = document.getElementById('studentsTableBody');
+            tbody.innerHTML = '';
+            
+            studentsData.forEach(student => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.class}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.birthDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.gender}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${student.parentName}<br>
+                        <span class="text-gray-500">${student.parentPhone}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 student-actions">
+                        ${(currentUser.role === 'admin' || currentUser.role === 'teacher') ? 
+                            `<button onclick="editStudent('${student.id}')" class="text-blue-600 hover:text-blue-900 edit-btn">แก้ไข</button>` : ''}
+                        ${currentUser.role === 'admin' ? 
+                            `<button onclick="deleteStudent('${student.id}')" class="text-red-600 hover:text-red-900 delete-btn">ลบ</button>` : ''}
+                        ${currentUser.role === 'student' ? 
+                            `<span class="text-gray-400 view-only">ดูอย่างเดียว</span>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function editStudent(studentId) {
+            // Check permissions
+            if (currentUser.role !== 'admin' && currentUser.role !== 'teacher') {
+                alert('คุณไม่มีสิทธิ์แก้ไขข้อมูลนักเรียน');
+                return;
+            }
+            
+            const student = studentsData.find(s => s.id === studentId);
+            if (student) {
+                // Split name into first and last name
+                const nameParts = student.name.split(' ');
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+                
+                // Convert Thai date to ISO format for date input
+                let isoDate = '';
+                if (student.birthDate) {
+                    const dateParts = student.birthDate.split('/');
+                    if (dateParts.length === 3) {
+                        const day = dateParts[0];
+                        const month = dateParts[1];
+                        const year = parseInt(dateParts[2]) - 543; // Convert from Buddhist to Gregorian year
+                        isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                }
+                
+                // Populate form fields
+                document.getElementById('editStudentOriginalId').value = student.id;
+                document.getElementById('editStudentId').value = student.id;
+                document.getElementById('editStudentClass').value = student.class;
+                document.getElementById('editStudentFirstName').value = firstName;
+                document.getElementById('editStudentLastName').value = lastName;
+                document.getElementById('editStudentBirthDate').value = isoDate;
+                document.getElementById('editStudentGender').value = student.gender;
+                document.getElementById('editParentName').value = student.parentName || '';
+                document.getElementById('editParentPhone').value = student.parentPhone || '';
+                document.getElementById('editParentEmail').value = student.parentEmail || '';
+                
+                // Show modal
+                showEditStudentModal();
+            }
+        }
+
+        function showEditStudentModal() {
+            document.getElementById('editStudentModal').classList.remove('hidden');
+            document.getElementById('editStudentModal').classList.add('flex');
+        }
+
+        function hideEditStudentModal() {
+            document.getElementById('editStudentModal').classList.add('hidden');
+            document.getElementById('editStudentModal').classList.remove('flex');
+        }
+
+        function handleEditStudent(event) {
+            event.preventDefault();
+            
+            const originalId = document.getElementById('editStudentOriginalId').value;
+            const newData = {
+                id: document.getElementById('editStudentId').value,
+                class: document.getElementById('editStudentClass').value,
+                firstName: document.getElementById('editStudentFirstName').value,
+                lastName: document.getElementById('editStudentLastName').value,
+                birthDate: document.getElementById('editStudentBirthDate').value,
+                gender: document.getElementById('editStudentGender').value,
+                parentName: document.getElementById('editParentName').value,
+                parentPhone: document.getElementById('editParentPhone').value,
+                parentEmail: document.getElementById('editParentEmail').value
+            };
+            
+            // Validate required fields
+            if (!newData.id || !newData.class || !newData.firstName || !newData.lastName) {
+                alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน');
+                return;
+            }
+            
+            // Check if new student ID already exists (but not the original)
+            if (newData.id !== originalId && studentsData.find(s => s.id === newData.id)) {
+                alert('รหัสนักเรียนนี้มีอยู่แล้ว กรุณาใช้รหัสอื่น');
+                return;
+            }
+            
+            // Find and update student
+            const studentIndex = studentsData.findIndex(s => s.id === originalId);
+            if (studentIndex > -1) {
+                // Convert date to Thai format
+                let thaiDate = '';
+                if (newData.birthDate) {
+                    const date = new Date(newData.birthDate);
+                    thaiDate = date.toLocaleDateString('th-TH');
+                }
+                
+                // Update student data
+                studentsData[studentIndex] = {
+                    ...studentsData[studentIndex],
+                    id: newData.id,
+                    name: `${newData.firstName} ${newData.lastName}`,
+                    class: newData.class,
+                    birthDate: thaiDate,
+                    gender: newData.gender,
+                    parentName: newData.parentName,
+                    parentPhone: newData.parentPhone,
+                    parentEmail: newData.parentEmail
+                };
+                
+                // Update students array for attendance if ID changed
+                if (newData.id !== originalId) {
+                    const attendanceIndex = students.findIndex(s => s.id === originalId);
+                    if (attendanceIndex > -1) {
+                        students[attendanceIndex].id = newData.id;
+                        students[attendanceIndex].name = `${newData.firstName} ${newData.lastName}`;
+                        students[attendanceIndex].class = newData.class;
+                    }
+                }
+                
+                // Show success message
+                alert(`แก้ไขข้อมูลนักเรียน ${newData.firstName} ${newData.lastName} เรียบร้อยแล้ว`);
+                
+                // Close modal and refresh table
+                hideEditStudentModal();
+                populateStudentsTable();
+                
+                // Re-apply current filter if any
+                const searchTerm = document.getElementById('searchStudent').value;
+                const classFilter = document.getElementById('filterClass').value;
+                if (searchTerm || classFilter) {
+                    filterStudents();
+                }
+            }
+        }
+
+        function deleteStudent(studentId) {
+            // Check permissions - only admin can delete
+            if (currentUser.role !== 'admin') {
+                alert('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบข้อมูลนักเรียนได้');
+                return;
+            }
+            
+            const student = studentsData.find(s => s.id === studentId);
+            if (student && confirm(`คุณต้องการลบข้อมูลนักเรียน ${student.name} หรือไม่?`)) {
+                const index = studentsData.findIndex(s => s.id === studentId);
+                if (index > -1) {
+                    studentsData.splice(index, 1);
+                    
+                    // Also remove from students array for attendance
+                    const attendanceIndex = students.findIndex(s => s.id === studentId);
+                    if (attendanceIndex > -1) {
+                        students.splice(attendanceIndex, 1);
+                    }
+                    
+                    populateStudentsTable();
+                    alert(`ลบข้อมูลนักเรียน ${student.name} เรียบร้อยแล้ว`);
+                }
+            }
+        }
+
+        function filterStudents() {
+            const searchTerm = document.getElementById('searchStudent').value.toLowerCase();
+            const classFilter = document.getElementById('filterClass').value;
+            
+            const tbody = document.getElementById('studentsTableBody');
+            tbody.innerHTML = '';
+            
+            const filteredStudents = studentsData.filter(student => {
+                const matchesSearch = student.name.toLowerCase().includes(searchTerm) || 
+                                    student.id.toLowerCase().includes(searchTerm);
+                const matchesClass = !classFilter || student.class === classFilter;
+                
+                return matchesSearch && matchesClass;
+            });
+            
+            filteredStudents.forEach(student => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.class}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.birthDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${student.gender}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${student.parentName}<br>
+                        <span class="text-gray-500">${student.parentPhone}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 student-actions">
+                        ${(currentUser.role === 'admin' || currentUser.role === 'teacher') ? 
+                            `<button onclick="editStudent('${student.id}')" class="text-blue-600 hover:text-blue-900 edit-btn">แก้ไข</button>` : ''}
+                        ${currentUser.role === 'admin' ? 
+                            `<button onclick="deleteStudent('${student.id}')" class="text-red-600 hover:text-red-900 delete-btn">ลบ</button>` : ''}
+                        ${currentUser.role === 'student' ? 
+                            `<span class="text-gray-400 view-only">ดูอย่างเดียว</span>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Re-apply permissions after filtering
+            setupStudentPermissions();
+        }
+
+        function addStudentToTable(studentData) {
+            // Generate new student ID
+            const maxId = Math.max(...studentsData.map(s => parseInt(s.id))) + 1;
+            const newId = maxId.toString().padStart(5, '0');
+            
+            const newStudent = {
+                id: newId,
+                name: `${studentData.firstName} ${studentData.lastName}`,
+                class: studentData.class,
+                birthDate: studentData.birthDate ? new Date(studentData.birthDate).toLocaleDateString('th-TH') : '',
+                gender: studentData.gender,
+                parentName: studentData.parentName,
+                parentPhone: studentData.parentPhone,
+                parentEmail: studentData.parentEmail,
+                status: 'present'
+            };
+            
+            studentsData.push(newStudent);
+            populateStudentsTable();
+            
+            return newStudent;
+        }
+
+        // Report generation functions
+        function generateReport() {
+            // Check permissions
+            if (currentUser.role !== 'admin' && currentUser.role !== 'teacher') {
+                alert('คุณไม่มีสิทธิ์สร้างรายงาน');
+                return;
+            }
+            
+            const semester = document.getElementById('reportSemester').value;
+            const selectedClass = document.getElementById('reportClass').value;
+            const reportDate = document.getElementById('reportDate').value;
+            
+            // Show loading state
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>กำลังสร้างรายงาน...';
+            button.disabled = true;
+            
+            // Simulate report generation
+            setTimeout(() => {
+                updateReportData(semester, selectedClass, reportDate);
+                
+                // Reset button
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+                // Show success message
+                const dateText = reportDate ? ` ณ วันที่ ${new Date(reportDate).toLocaleDateString('th-TH')}` : '';
+                const classText = selectedClass ? ` ห้อง ${selectedClass}` : ' ทุกห้องเรียน';
+                alert(`สร้างรายงานสำเร็จ!\n\nภาคเรียน: ${semester}${classText}${dateText}`);
+            }, 1500);
+        }
+
+        function updateReportData(semester, selectedClass, reportDate) {
+            const tbody = document.getElementById('reportTableBody');
+            tbody.innerHTML = '';
+            
+            // Generate sample data based on filters
+            const classes = selectedClass ? [selectedClass] : ['ปวช.1', 'ปวช.2', 'ปวช.3', 'ปวส.1', 'ปวส.2'];
+            
+            classes.forEach(className => {
+                const studentCount = Math.floor(Math.random() * 10) + 30; // 30-40 students
+                const presentCount = Math.floor(studentCount * (0.8 + Math.random() * 0.15)); // 80-95%
+                const lateCount = Math.floor((studentCount - presentCount) * 0.7); // 70% of remaining
+                const absentCount = studentCount - presentCount - lateCount;
+                const percentage = ((presentCount / studentCount) * 100).toFixed(1);
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${className}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${studentCount}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">${presentCount.toLocaleString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-600 font-medium">${lateCount.toLocaleString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">${absentCount.toLocaleString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${percentage}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function downloadReportPDF() {
+            // Check permissions
+            if (currentUser.role !== 'admin' && currentUser.role !== 'teacher') {
+                alert('คุณไม่มีสิทธิ์ดาวน์โหลดรายงาน');
+                return;
+            }
+            
+            // Get report parameters
+            const semester = document.getElementById('reportSemester').value;
+            const selectedClass = document.getElementById('reportClass').value || 'ทุกห้องเรียน';
+            const reportDate = document.getElementById('reportDate').value;
+            
+            // Create PDF content
+            const reportContent = generateReportContent(semester, selectedClass, reportDate);
+            
+            // Create and download PDF (simulated)
+            const blob = new Blob([reportContent], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `รายงานการเข้าแถว_${semester}_${selectedClass}_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('ดาวน์โหลดรายงาน PDF เรียบร้อยแล้ว!');
+        }
+
+        function downloadReportExcel() {
+            // Check permissions
+            if (currentUser.role !== 'admin' && currentUser.role !== 'teacher') {
+                alert('คุณไม่มีสิทธิ์ดาวน์โหลดรายงาน');
+                return;
+            }
+            
+            // Get report parameters
+            const semester = document.getElementById('reportSemester').value;
+            const selectedClass = document.getElementById('reportClass').value || 'ทุกห้องเรียน';
+            const reportDate = document.getElementById('reportDate').value;
+            
+            // Create Excel content (CSV format)
+            let csvContent = 'ห้องเรียน,จำนวนนักเรียน,เข้าแถว,มาสาย,ขาดเรียน,เปอร์เซ็นต์\n';
+            
+            const rows = document.querySelectorAll('#reportTableBody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const rowData = Array.from(cells).map(cell => cell.textContent.trim()).join(',');
+                csvContent += rowData + '\n';
+            });
+            
+            // Create and download Excel file
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `รายงานการเข้าแถว_${semester}_${selectedClass}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('ดาวน์โหลดรายงาน Excel เรียบร้อยแล้ว!');
+        }
+
+        function printReport() {
+            // Check permissions
+            if (currentUser.role !== 'admin' && currentUser.role !== 'teacher') {
+                alert('คุณไม่มีสิทธิ์พิมพ์รายงาน');
+                return;
+            }
+            
+            // Get report parameters
+            const semester = document.getElementById('reportSemester').value;
+            const selectedClass = document.getElementById('reportClass').value || 'ทุกห้องเรียน';
+            const reportDate = document.getElementById('reportDate').value;
+            const dateText = reportDate ? new Date(reportDate).toLocaleDateString('th-TH') : 'ทุกวัน';
+            
+            // Create print window
+            const printWindow = window.open('', '_blank');
+            const reportTable = document.getElementById('reportTable').outerHTML;
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>รายงานการเข้าแถว</title>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: 'Sarabun', Arial, sans-serif; margin: 20px; }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        .header h1 { color: #1f2937; margin-bottom: 10px; }
+                        .header p { color: #6b7280; margin: 5px 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }
+                        th { background-color: #f9fafb; font-weight: 600; }
+                        .text-green-600 { color: #059669; }
+                        .text-yellow-600 { color: #d97706; }
+                        .text-red-600 { color: #dc2626; }
+                        @media print {
+                            body { margin: 0; }
+                            .no-print { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>รายงานสรุปการเข้าแถว</h1>
+                        <p>วิทยาลัยเทคนิคเพชรบุรี</p>
+                        <p>ภาคเรียน: ${semester} | ห้องเรียน: ${selectedClass} | วันที่: ${dateText}</p>
+                        <p>สร้างโดย: ${currentUser.name} | วันที่สร้าง: ${new Date().toLocaleDateString('th-TH')}</p>
+                    </div>
+                    ${reportTable}
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.focus();
+            
+            // Wait for content to load then print
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 500);
+        }
+
+        function generateReportContent(semester, selectedClass, reportDate) {
+            // This would generate actual PDF content in a real application
+            return `รายงานการเข้าแถว - ${semester} - ${selectedClass} - ${reportDate || 'ทุกวัน'}`;
+        }
+
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set current date
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('attendanceDate');
+            if (dateInput) {
+                dateInput.value = today;
+            }
+            
+            // Set report date
+            const reportDateInput = document.getElementById('reportDate');
+            if (reportDateInput) {
+                reportDateInput.value = today;
+            }
+            
+            // Generate attendance grid
+            generateAttendanceGrid();
+            
+            // Populate students table
+            populateStudentsTable();
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('addStudentModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideAddStudentModal();
+            }
+        });
+        
+        document.getElementById('addUserModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideAddUserModal();
+            }
+        });
+        
+        document.getElementById('userCreatedModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideUserCreatedModal();
+            }
+        });
+        
+        document.getElementById('editStudentModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideEditStudentModal();
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'973426443695fd90',t:'MTc1NTg4NDM2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
